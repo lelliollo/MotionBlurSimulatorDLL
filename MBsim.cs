@@ -9,26 +9,133 @@ namespace MotionBlurGenDLL
 
     public class MBsim
     {
-        // Shared variables
-        public Bitmap LdImg;
-        public int Rows;
-        public int Cols;
-        public Double[,] OriginalImage;
-        ParallelOptions parPool = new ParallelOptions();//Just a string constant to fill spaces 
+        #region Shared variables (class properties)
 
-        public MBsim(string imgFilename)
-        {
-            LdImg = new Bitmap(imgFilename);
-            Bitmap GrIm = MBsim.ImageManipulation.Im_RGB2Grayscale(LdImg);
-            OriginalImage = MBsim.ImageManipulation.Mat_Gray2Double(GrIm);
-            Cols = LdImg.Height;
-            Rows = LdImg.Width;
-        }
-        public double[,]  SimulateBlur(double W, double phi)
-        {
-            Double[,] BlrdImage = MBsim.ImageManipulation.SimulateMotionBlurRoutine(OriginalImage, W, phi, true);
-            return BlrdImage;
-        }
+            /// <summary>
+            /// Property to store the loaded bitmap
+            /// </summary>
+            public Bitmap LdImg;
+
+            /// <summary>
+            /// Property to save number of rows
+            /// </summary>
+            public int Rows;
+
+            /// <summary>
+            /// Property to save number of columns
+            /// </summary>
+            public int Cols;
+
+            /// <summary>
+            /// Property to store the original image as double
+            /// </summary>
+            public Double[,] OriginalImage;
+
+            /// <summary>
+            /// Property to hold the handle to parallel pool to parrelize convolution
+            /// </summary>
+            ParallelOptions parPool = new ParallelOptions();
+        #endregion
+
+        #region Class constructor
+
+        /// <summary>
+        /// Constructor for the motion blur simulation class MBsim. It initializes all instances needed to perform simulation
+        /// </summary>
+        /// <param name="imgFilename">Path to the reference image (any image format supported by Windows)</param>
+        /// <param name="WisdomFile">Path to the wisdom file. if empty, the wisdom is simply cleared</param>
+        public MBsim(string imgFilename, string WisdomFile)
+            {
+                // Set wisdom for FFTW
+                if (string.IsNullOrEmpty(WisdomFile))
+                {
+                    DFT.Wisdom.Clear();
+                }
+                else
+                {
+                    DFT.Wisdom.Import(WisdomFile);
+                };
+
+                LdImg = new Bitmap(imgFilename);
+                Bitmap GrIm = MBsim.ImageManipulation.Im_RGB2Grayscale(LdImg);
+                OriginalImage = MBsim.ImageManipulation.Mat_Gray2Double(GrIm);
+                Cols = LdImg.Height;
+                Rows = LdImg.Width;
+            }
+        #endregion
+
+        #region Class methods to perform and handle simulation
+
+            /// <summary>
+            /// Method to call the motion blur simulation, given motion parameters
+            /// </summary>
+            /// <param name="W">The amount of motion blur in pixels (can be subpixel, like 3.23)</param>
+            /// <param name="phi">Motion blur direction angle (in degrees) - clockwise</param>
+            /// <returns></returns>
+            public double[,] SimulateBlur(double W, double phi)
+            {
+                Double[,] BlrdImage = MBsim.ImageManipulation.SimulateMotionBlurRoutine(OriginalImage, W, phi, true);
+                return BlrdImage;
+            }
+
+            /// <summary>
+            /// Method to set the reference image
+            /// </summary>
+            /// <param name="imgFilename">Path to the reference image (any image format supported by Windows)</param>
+            public void SetReferenceImage(string imgFilename)
+            {
+                LdImg = new Bitmap(imgFilename);
+                Bitmap GrIm = MBsim.ImageManipulation.Im_RGB2Grayscale(LdImg);
+                OriginalImage = MBsim.ImageManipulation.Mat_Gray2Double(GrIm);
+                Cols = LdImg.Height;
+                Rows = LdImg.Width;
+            }
+
+            /// <summary>
+            /// Method to set the wisdom for FFTW algorithm
+            /// </summary>
+            /// <param name="WisdomFile">Path to the wisdom file. if empty, the wisdom is simply cleared</param>
+            public void SetFFTWisdom(string WisdomFile)
+            {
+                // Set wisdom for FFTW
+                if (string.IsNullOrEmpty(WisdomFile))
+                {
+                    DFT.Wisdom.Clear();
+                }
+                else
+                {
+                    DFT.Wisdom.Import(WisdomFile);
+                };
+            }
+        #endregion
+
+        #region Class utilities
+
+            /// <summary>
+            /// Method to clear the memory occupied by DLL properties (all will be deleted)
+            /// </summary>
+            public void ClearMemory()
+            {
+                DFT.Wisdom.Clear();
+                OriginalImage = MBsim.ImageManipulation.DisposeArray();
+                LdImg = MBsim.ImageManipulation.DisposeBitmap();
+                GC.Collect();
+            }
+
+            /// <summary>
+            /// Method to monitor memory usage of DLL
+            /// </summary>
+            /// <returns>
+            /// The total memory allocated by the process
+            /// </returns>
+            public double MemoryUsage()
+            {
+                double MemUsg = GC.GetTotalMemory(true);
+                return (MemUsg);
+            }
+
+        #endregion
+        
         private class ImageManipulation
         {
             #region Subroutines to convert images into double matrices (back and forth)
@@ -312,9 +419,7 @@ namespace MotionBlurGenDLL
                 FFTWOutputArray.Dispose();
                 ImgFFTWInput.Dispose();
                 FFTWConvOutputArray.Dispose();
-                FFTWOutputArray = null;
-                ImgFFTWInput = null;
-                FFTWConvOutputArray = null;
+                GC.Collect();
                 return outputMat;
             }
 
@@ -436,7 +541,19 @@ namespace MotionBlurGenDLL
                 return value % 2 != 0;
             }
 
-#endregion
+            #endregion
+            #region Factory initialize
+            public static double[,] DisposeArray()
+            {
+                Double[,] DummyArray = new Double[2, 2];
+                return (DummyArray);
+            }
+            public static Bitmap DisposeBitmap()
+            {
+                Bitmap DumBitm = new Bitmap(2, 2);
+                return (DumBitm);
+            }
+            #endregion
         }
     }
 }
